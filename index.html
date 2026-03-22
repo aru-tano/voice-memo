@@ -74,19 +74,36 @@
 
   /* ===== Doc bar ===== */
   .doc-bar {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; gap: 8px;
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--r-sm); padding: calc(var(--sp)*0.75) calc(var(--sp)*1.5);
     font-size: 13px; color: var(--text2);
     box-shadow: 0 1px 3px rgba(0,0,0,0.02), 0 2px 8px rgba(0,0,0,0.015);
   }
-  .doc-bar .lbl { display: flex; align-items: center; gap: 6px; }
+  .doc-bar .lbl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   .doc-bar .lbl svg { width: 14px; height: 14px; opacity: 0.35; flex-shrink: 0; }
-  .doc-bar .chg {
-    background: none; border: none; color: var(--text3); font-size: 12px;
-    cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+  .doc-select {
+    flex: 1; min-width: 0;
+    appearance: none; -webkit-appearance: none;
+    background: var(--accent-soft); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 28px 6px 10px;
+    font-size: 13px; font-family: inherit; color: var(--text);
+    cursor: pointer; outline: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+    transition: border-color 150ms, box-shadow 150ms;
+    text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
   }
-  .doc-bar .chg:hover { color: var(--text2); }
+  .doc-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .doc-bar .add-btn {
+    flex-shrink: 0; width: 28px; height: 28px;
+    border: 1px dashed var(--text3); border-radius: 6px;
+    background: transparent; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text3); font-size: 16px; font-weight: 400;
+    transition: border-color 150ms, color 150ms, background 150ms;
+  }
+  .doc-bar .add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
   /* ===== Mic ===== */
   .mic-zone {
@@ -324,6 +341,7 @@
   </div>
   <h1>Voice<span>Pad</span></h1>
   <p class="desc">話すだけでGoogleドキュメントに自動保存。<br>まず保存先のドキュメントURLを設定してください。</p>
+  <input type="text" id="docNameInput" placeholder="ノート名（例: 仕事メモ、アイデア帳）" style="margin-bottom:calc(var(--sp)*1);">
   <input type="text" id="docUrlInput" placeholder="GoogleドキュメントのURLを貼り付け">
   <button class="setup-btn" onclick="saveSetup()">はじめる</button>
   <button class="back-btn hidden" id="setupBackBtn" onclick="cancelSetup()">戻る</button>
@@ -346,9 +364,9 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
       </svg>
-      <span id="docName">接続済み</span>
     </span>
-    <button class="chg" onclick="resetSetup()">変更</button>
+    <select class="doc-select" id="docSelect" onchange="switchDoc()"></select>
+    <button class="add-btn" onclick="showAddDoc()" title="新しいノートを追加">+</button>
   </div>
 
   <div class="offline-banner" id="offlineBanner">オフラインです。接続復帰時に自動送信します</div>
@@ -402,6 +420,6 @@
   </div>
 </div>
 
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

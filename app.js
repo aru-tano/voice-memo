@@ -9,29 +9,128 @@
   }
 
   function extractDocId(url) { var m = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/); return m ? m[1] : null; }
-  function getDocId() { return localStorage.getItem('voice_memo_doc_id'); }
+
+  // ===== Multi-document storage =====
+  var DOCS_KEY = 'voice_memo_docs';
+  var ACTIVE_KEY = 'voice_memo_active';
+
+  function getDocs() {
+    try { return JSON.parse(localStorage.getItem(DOCS_KEY) || '[]'); } catch(e) { return []; }
+  }
+  function saveDocs(docs) { localStorage.setItem(DOCS_KEY, JSON.stringify(docs)); }
+  function getActiveIndex() { return parseInt(localStorage.getItem(ACTIVE_KEY) || '0', 10); }
+  function setActiveIndex(i) { localStorage.setItem(ACTIVE_KEY, String(i)); }
+
+  function getDocId() {
+    var docs = getDocs(), i = getActiveIndex();
+    return docs[i] ? docs[i].id : null;
+  }
   function getDocUrl() { var id = getDocId(); return id ? 'https://docs.google.com/document/d/' + id + '/edit' : ''; }
   function getShareUrl() { var id = getDocId(); return id ? location.origin + location.pathname + '?doc=' + id : ''; }
+
+  // Migrate from old single-doc format
+  function migrateIfNeeded() {
+    var docs = getDocs();
+    if (docs.length > 0) return;
+    var oldId = localStorage.getItem('voice_memo_doc_id');
+    if (oldId) {
+      saveDocs([{ id: oldId, name: 'メモ' }]);
+      setActiveIndex(0);
+      localStorage.removeItem('voice_memo_doc_id');
+    }
+  }
+
+  function addDoc(id, name) {
+    var docs = getDocs();
+    // Check for duplicate
+    for (var i = 0; i < docs.length; i++) {
+      if (docs[i].id === id) { setActiveIndex(i); return; }
+    }
+    docs.push({ id: id, name: name || 'メモ' });
+    saveDocs(docs);
+    setActiveIndex(docs.length - 1);
+  }
+
+  function removeActiveDoc() {
+    var docs = getDocs(), i = getActiveIndex();
+    if (docs.length <= 1) return; // keep at least one
+    docs.splice(i, 1);
+    saveDocs(docs);
+    if (i >= docs.length) i = docs.length - 1;
+    setActiveIndex(i);
+  }
+
+  // ===== Setup screen =====
+  var isAddingDoc = false; // true when adding from main screen
 
   function saveSetup() {
     var url = el('docUrlInput').value.trim();
     var docId = extractDocId(url);
     if (!docId) { if (/^[a-zA-Z0-9_-]{20,}$/.test(url)) docId = url; else { el('setupError').textContent = 'GoogleドキュメントのURLを正しく貼ってください'; return; } }
-    localStorage.setItem('voice_memo_doc_id', docId); showMain();
+    var name = el('docNameInput').value.trim() || 'メモ';
+    addDoc(docId, name);
+    el('docNameInput').value = '';
+    el('docUrlInput').value = '';
+    isAddingDoc = false;
+    showMain();
   }
-  function resetSetup() { showSetup(); }
-  function cancelSetup() { if (getDocId()) showMain(); }
+  function resetSetup() { isAddingDoc = false; showSetup(); }
+  function cancelSetup() { if (getDocId()) { isAddingDoc = false; showMain(); } }
+
+  function showAddDoc() {
+    isAddingDoc = true;
+    showSetup();
+  }
+
   function showSetup() {
     el('setupScreen').classList.remove('hidden'); el('mainScreen').classList.add('hidden');
-    if (getDocId()) { el('setupBackBtn').classList.remove('hidden'); el('docUrlInput').value = getDocUrl(); }
-    else { el('setupBackBtn').classList.add('hidden'); }
+    var hasDoc = getDocId();
+    if (hasDoc && !isAddingDoc) {
+      el('setupBackBtn').classList.remove('hidden');
+      el('docUrlInput').value = getDocUrl();
+      var docs = getDocs(), i = getActiveIndex();
+      el('docNameInput').value = docs[i] ? docs[i].name : '';
+    } else if (isAddingDoc) {
+      el('setupBackBtn').classList.remove('hidden');
+      el('docUrlInput').value = '';
+      el('docNameInput').value = '';
+    } else {
+      el('setupBackBtn').classList.add('hidden');
+      el('docNameInput').value = '';
+    }
+    el('setupError').textContent = '';
   }
+
+  function renderDocSelect() {
+    var select = el('docSelect');
+    var docs = getDocs(), active = getActiveIndex();
+    select.innerHTML = '';
+    for (var i = 0; i < docs.length; i++) {
+      var opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = docs[i].name;
+      if (i === active) opt.selected = true;
+      select.appendChild(opt);
+    }
+  }
+
+  function switchDoc() {
+    var select = el('docSelect');
+    setActiveIndex(parseInt(select.value, 10));
+    updateMainUI();
+  }
+
+  function updateMainUI() {
+    var id = getDocId();
+    if (!id) return;
+    renderDocSelect();
+    el('openDocLink').href = getDocUrl(); el('openDocLink').style.display = 'flex';
+    if (el('qrBtn')) el('qrBtn').style.display = 'flex';
+  }
+
   function showMain() {
     el('setupScreen').classList.add('hidden'); el('mainScreen').classList.remove('hidden');
-    var id = getDocId(); el('docName').textContent = '...' + id.slice(-10);
-    el('openDocLink').href = getDocUrl(); el('openDocLink').style.display = 'flex';
-    // Show QR button on desktop
-    if (el('qrBtn')) el('qrBtn').style.display = 'flex';
+    updateMainUI();
   }
 
   // ===== QR Code (API image) =====
@@ -180,10 +279,13 @@
   el('textArea').addEventListener('input', function() { updateCharCount(); el('saveBtn').disabled = !(el('textArea').textContent || '').trim(); });
 
   // ===== Init =====
-  // Check URL param first
+  migrateIfNeeded();
+
+  // Check URL param — add as new doc or activate existing
   var paramDocId = getUrlParam('doc');
+  var paramDocName = getUrlParam('name');
   if (paramDocId) {
-    localStorage.setItem('voice_memo_doc_id', paramDocId);
+    addDoc(paramDocId, paramDocName || 'メモ');
   }
 
   if (getDocId()) showMain(); else showSetup();
