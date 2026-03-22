@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="音声メモ">
+<title>音声メモ</title>
+<style>
+  /* ===== Reset & Base [SU-002 Elevated Neutral, SU-004 8px Grid] ===== */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg-base: #FAF9F6;
+    --bg-surface: #FFFFFF;
+    --accent: #2563EB;
+    --accent-hover: #1D4ED8;
+    --accent-light: #EFF6FF;
+    --text-primary: #1E293B;
+    --text-secondary: #64748B;
+    --text-muted: #94A3B8;
+    --border: #E2E8F0;
+    --success: #059669;
+    --recording: #DC2626;
+    --recording-glow: rgba(220, 38, 38, 0.25);
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+    --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+    --radius-sm: 6px; --radius-md: 12px; --radius-lg: 20px; --radius-full: 9999px;
+    --dur-instant: 80ms; --dur-fast: 150ms; --dur-normal: 250ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    background: var(--bg-base); color: var(--text-primary);
+    min-height: 100vh; min-height: 100dvh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: var(--sp-6); -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    width: 100%; max-width: 480px;
+    display: flex; flex-direction: column; align-items: center; gap: var(--sp-4);
+  }
+  .header { text-align: center; padding: var(--sp-4) 0; }
+  .header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
+  .doc-bar {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    background: var(--accent-light); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: var(--sp-2) var(--sp-3);
+    font-size: 0.75rem; color: var(--accent);
+  }
+  .doc-bar .doc-label { display: flex; align-items: center; gap: var(--sp-2); }
+  .doc-bar .doc-label svg { flex-shrink: 0; }
+  .doc-bar button {
+    background: none; border: none; color: var(--text-muted); font-size: 0.75rem;
+    cursor: pointer; padding: var(--sp-1) var(--sp-2); border-radius: var(--radius-sm);
+    transition: color var(--dur-fast) var(--ease-out);
+  }
+  .doc-bar button:hover { color: var(--text-secondary); }
+
+  .mic-area { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); padding: var(--sp-6) 0; }
+  .mic-btn {
+    width: 96px; height: 96px; border-radius: var(--radius-full); border: none;
+    background: var(--text-primary); color: var(--bg-surface); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform var(--dur-fast) var(--ease-out), background var(--dur-normal) var(--ease-out),
+                box-shadow var(--dur-normal) var(--ease-out);
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .mic-btn:hover { transform: scale(1.03); }
+  .mic-btn:active { transform: scale(0.96); }
+  .mic-btn.recording {
+    background: var(--recording);
+    box-shadow: 0 0 0 0 var(--recording-glow), 0 4px 16px rgba(220,38,38,0.20);
+    animation: mic-pulse 2s ease-in-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--recording-glow), 0 4px 16px rgba(220,38,38,0.20); }
+    50% { box-shadow: 0 0 0 16px transparent, 0 4px 24px rgba(220,38,38,0.30); }
+  }
+  .mic-btn svg { width: 36px; height: 36px; }
+  .status-text { font-size: 0.8125rem; color: var(--text-secondary); min-height: 20px; transition: color var(--dur-fast); }
+  .status-text.recording { color: var(--recording); font-weight: 600; }
+  .timer { font-size: 0.75rem; color: var(--text-muted); font-variant-numeric: tabular-nums; min-height: 18px; }
+
+  .text-card {
+    width: 100%; background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+    overflow: hidden; transition: border-color var(--dur-fast);
+  }
+  .text-card:focus-within { border-color: var(--accent); }
+  .text-input {
+    width: 100%; min-height: 120px; padding: var(--sp-4);
+    font-size: 0.9375rem; line-height: 1.7; color: var(--text-primary);
+    border: none; outline: none; resize: none; background: transparent; font-family: inherit;
+  }
+  .text-input:empty::before { content: "マイクボタンを押して話してください"; color: var(--text-muted); }
+  .text-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: var(--sp-2) var(--sp-4); border-top: 1px solid var(--border); background: var(--bg-base);
+  }
+  .char-count { font-size: 0.6875rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .clear-btn {
+    font-size: 0.6875rem; color: var(--text-muted); background: none; border: none;
+    cursor: pointer; padding: var(--sp-1) var(--sp-2); border-radius: var(--radius-sm);
+    transition: color var(--dur-fast);
+  }
+  .clear-btn:hover { color: var(--recording); }
+
+  .save-btn {
+    width: 100%; min-height: 48px; padding: var(--sp-3) var(--sp-6);
+    border: none; border-radius: var(--radius-md); background: var(--accent);
+    color: #fff; font-size: 0.9375rem; font-weight: 600; cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out), transform var(--dur-instant) var(--ease-out);
+    -webkit-tap-highlight-color: transparent;
+    display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  }
+  .save-btn:hover { background: var(--accent-hover); }
+  .save-btn:active { transform: scale(0.98); }
+  .save-btn:disabled { background: var(--border); color: var(--text-muted); cursor: default; transform: none; }
+  .save-btn svg { width: 18px; height: 18px; }
+
+  .result { font-size: 0.8125rem; min-height: 20px; text-align: center; }
+  .result.success { color: var(--success); }
+  .result.error { color: var(--recording); }
+
+  .open-doc {
+    display: none; align-items: center; justify-content: center; gap: var(--sp-2);
+    width: 100%; min-height: 44px; padding: var(--sp-3) var(--sp-6);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    background: var(--bg-surface); color: var(--accent);
+    font-size: 0.875rem; font-weight: 500; text-decoration: none; cursor: pointer;
+    transition: background var(--dur-fast);
+  }
+  .open-doc:hover { background: var(--accent-light); }
+  .open-doc svg { width: 16px; height: 16px; }
+
+  .offline-banner {
+    display: none; width: 100%; padding: var(--sp-2) var(--sp-3);
+    background: #FEF3C7; border: 1px solid #F59E0B; border-radius: var(--radius-sm);
+    font-size: 0.75rem; color: #92400E; text-align: center;
+  }
+  .offline-banner.show { display: block; }
+  .queue-badge {
+    display: none; font-size: 0.6875rem; color: #92400E;
+    background: #FEF3C7; padding: var(--sp-1) var(--sp-2); border-radius: var(--radius-full);
+  }
+  .queue-badge.show { display: inline-flex; }
+
+  .history { width: 100%; margin-top: var(--sp-4); }
+  .history-title { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--sp-2); }
+  .history-item {
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: var(--sp-3); margin-bottom: var(--sp-2);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03); transition: box-shadow var(--dur-fast);
+  }
+  .history-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .history-time { font-size: 0.6875rem; color: var(--text-muted); margin-bottom: var(--sp-1); }
+  .history-text { font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.5; }
+
+  .setup { width: 100%; text-align: center; }
+  .setup-icon {
+    width: 64px; height: 64px; margin: var(--sp-8) auto var(--sp-6);
+    background: var(--accent-light); border-radius: var(--radius-lg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .setup-icon svg { width: 32px; height: 32px; color: var(--accent); }
+  .setup h1 { font-size: 1.25rem; font-weight: 700; margin-bottom: var(--sp-2); }
+  .setup .desc { font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--sp-6); }
+  .setup input {
+    width: 100%; padding: var(--sp-3) var(--sp-4); border: 2px solid var(--border);
+    border-radius: var(--radius-md); font-size: 0.875rem; color: var(--text-primary);
+    background: var(--bg-surface); transition: border-color var(--dur-fast); font-family: inherit;
+  }
+  .setup input:focus { outline: none; border-color: var(--accent); }
+  .setup input::placeholder { color: var(--text-muted); }
+  .setup-btn {
+    width: 100%; min-height: 48px; margin-top: var(--sp-3); border: none;
+    border-radius: var(--radius-md); background: var(--accent); color: #fff;
+    font-size: 0.9375rem; font-weight: 600; cursor: pointer; transition: background var(--dur-fast);
+  }
+  .setup-btn:hover { background: var(--accent-hover); }
+  .setup-error { color: var(--recording); font-size: 0.8125rem; margin-top: var(--sp-2); min-height: 20px; }
+  .hidden { display: none !important; }
+  @media (max-width: 375px) {
+    body { padding: var(--sp-4); }
+    .mic-btn { width: 80px; height: 80px; }
+    .mic-btn svg { width: 28px; height: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container setup" id="setupScreen">
+  <div class="setup-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  </div>
+  <h1>音声メモ</h1>
+  <p class="desc">話した内容をGoogleドキュメントに自動保存します。<br>まず、保存先のドキュメントURLを設定してください。</p>
+  <input type="text" id="docUrlInput" placeholder="GoogleドキュメントのURLを貼り付け">
+  <button class="setup-btn" onclick="saveSetup()">設定する</button>
+  <button class="setup-btn hidden" id="setupBackBtn" onclick="cancelSetup()" style="background:transparent;color:var(--text-secondary);margin-top:var(--sp-2);">戻る</button>
+  <div class="setup-error" id="setupError"></div>
+</div>
+
+<div class="container hidden" id="mainScreen">
+  <div class="header"><h1>音声メモ</h1></div>
+  <div class="doc-bar" id="docBar">
+    <span class="doc-label">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span id="docName">接続済み</span>
+    </span>
+    <button onclick="resetSetup()">変更</button>
+  </div>
+  <div class="offline-banner" id="offlineBanner">オフラインです。保存は接続復帰時に自動送信されます</div>
+  <div class="mic-area">
+    <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+    </button>
+    <div class="status-text" id="status">タップして話す</div>
+    <div class="timer" id="timer"></div>
+  </div>
+  <div class="text-card">
+    <div class="text-input" id="textArea" contenteditable="true"></div>
+    <div class="text-footer">
+      <span class="char-count" id="charCount">0文字</span>
+      <button class="clear-btn" onclick="clearText()">クリア</button>
+    </div>
+  </div>
+  <button class="save-btn" id="saveBtn" onclick="saveToDoc()" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+      <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+    </svg>
+    Googleドキュメントに保存
+  </button>
+  <span class="queue-badge" id="queueBadge"></span>
+  <div class="result" id="result"></div>
+  <a class="open-doc" id="openDocLink" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+    </svg>
+    保存先のドキュメントを開く
+  </a>
+  <div class="history hidden" id="historySection">
+    <div class="history-title">保存済み</div>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
