@@ -1,5 +1,5 @@
 
-  var GAS_URL = 'https://script.google.com/macros/s/AKfycbxH03Equa8RMUaXO3ufW9NAUucanYMsAEz0AVhjIUdfkykHM-CFd4jlnWAZ0OpmGjkW4g/exec';
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbwXwZ-1YOYFlUAGUQJIN-npd5l9zCZX3_MbjMRSJvONzFvwXhBMh2p0wuoG_NCHSsl1rw/exec';
   var el = function(id) { return document.getElementById(id); };
 
   // ===== URL parameter support =====
@@ -109,9 +109,40 @@
     sendToGAS(q[0].text, q[0].docId, function(ok) { if (ok) { q.shift(); saveQueue(q); updateQueueBadge(); if (q.length > 0) setTimeout(flushQueue, 1000); } });
   }
   function sendToGAS(text, docId, callback) {
-    fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ text: text, docId: docId }) })
-    .then(function() { if (callback) callback(true); })
-    .catch(function() { if (callback) callback(false); });
+    // Safari互換: fetchがダメならXHR、それもダメならiframe POST
+    var payload = JSON.stringify({ text: text, docId: docId });
+    // Try fetch first
+    if (window.fetch) {
+      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: payload })
+      .then(function() { if (callback) callback(true); })
+      .catch(function() {
+        // Fallback: iframe form submit
+        sendViaForm(payload, callback);
+      });
+    } else {
+      sendViaForm(payload, callback);
+    }
+  }
+  function sendViaForm(payload, callback) {
+    var iframe = document.createElement('iframe');
+    iframe.name = 'gasFrame' + Date.now();
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = GAS_URL;
+    form.target = iframe.name;
+    var input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'payload';
+    input.value = payload;
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(function() {
+      form.remove(); iframe.remove();
+      if (callback) callback(true);
+    }, 3000);
   }
   function saveToDoc() {
     if (isRecording) stopRecording();
