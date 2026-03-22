@@ -114,6 +114,7 @@
     .catch(function() { if (callback) callback(false); });
   }
   function saveToDoc() {
+    if (isRecording) stopRecording();
     var text = (el('textArea').textContent || '').trim(), docId = getDocId();
     if (!text || !docId) return;
     el('saveBtn').disabled = true; el('saveBtn').textContent = '保存中...'; el('result').textContent = ''; el('result').className = 'result';
